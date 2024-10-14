@@ -119,6 +119,35 @@ app.get("/vidlink/watch", async (req: Request, res: Response) => {
     res.send(error);
   }
 });
+app.get("/moviesapi/watch", async (req: Request, res: Response) => {
+  res.setHeader("Content-Type", "application/json");
+  let src: Source;
+  const moviesapi = new moviesAPI();
+
+  try {
+    const id = req.query.id;
+    const isMovie = req.query.isMovie == "true";
+    if (!isMovie) {
+      const season = req.query.season;
+      const episode = req.query.episode;
+      console.log(id, isMovie, episode, season);
+      src = await moviesapi.getSource(
+        id?.toString()!,
+        isMovie,
+        season?.toString(),
+        episode?.toString()
+      );
+    } else {
+      src = await moviesapi.getSource(id?.toString()!, isMovie);
+    }
+
+    res.json(src);
+  } catch (error) {
+    console.log("faild ", error);
+
+    res.send(error);
+  }
+});
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
