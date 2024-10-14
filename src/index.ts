@@ -4,6 +4,7 @@ import Upcloud from "./extractors/upcloud";
 import { Source } from "./utils/types";
 import VidsrcNet from "./extractors/vidsrcNet";
 import Vidlink from "./extractors/vidlink";
+import moviesAPI from "./extractors/moviesAPI";
 
 const cors = require("cors");
 
