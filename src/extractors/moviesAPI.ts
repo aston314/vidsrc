@@ -1,14 +1,7 @@
-import axios from "axios";
-import cryptoJs from "crypto-js";
+import * as cryptoJs from "crypto-js";
+import { DecryptMethods, Provider, Source } from "../utils/types";
 
-interface Source {
-  sources: Array<{ file: string; label: string }>;
-  tracks: Array<{ file: string; label: string; kind: string }>;
-  referer: string;
-  provider: string;
-}
-
-class MoviesAPI {
+class MoviesAPI implements Provider {
   private baseUrl: string;
   private secretKey: string;
 
@@ -17,11 +10,11 @@ class MoviesAPI {
     this.secretKey = secretKey;
   }
 
-  decrypt(jsonStr: string, password: string): any {
+  decrypt: DecryptMethods["decrypt"] = (jsonStr, password) => {
     return JSON.parse(
       cryptoJs.AES.decrypt(jsonStr, password, {
         format: {
-          parse: (jsonStr: string) => {
+          parse: (jsonStr) => {
             var j = JSON.parse(jsonStr);
             var cipherParams = cryptoJs.lib.CipherParams.create({
               ciphertext: cryptoJs.enc.Base64.parse(j.ct),
@@ -38,23 +31,33 @@ class MoviesAPI {
   async getSource(id: string, isMovie: boolean, s?: string, e?: string): Promise<Source> {
     const url = this.baseUrl + (isMovie ? `movie/${id}` : `tv/${id}-${s}-${e}`);
     console.log(url);
-    const iframe = (
-      await axios.get(url, {
-        headers: { Referer: this.baseUrl },
-      })
-    ).data.match(/<iframe.* src="(.*?)"/)[1];
-    const jsonStr = (
-      await axios.get(iframe, { headers: { Referer: this.baseUrl } })
-    ).data.match(/<script type="text\/javascript">.*'(.*?)'.*<\/script>/)[1];
+
+    const response = await fetch(url, {
+      headers: { Referer: this.baseUrl },
+    });
+    const htmlContent = await response.text();
+    const iframeMatch = htmlContent.match(/<iframe.* src="(.*?)"/);
+    if (!iframeMatch) throw new Error("Iframe source not found");
+    const iframe = iframeMatch[1];
+
+    const iframeResponse = await fetch(iframe, {
+      headers: { Referer: this.baseUrl },
+    });
+    const iframeContent = await iframeResponse.text();
+    const scriptMatch = iframeContent.match(/<script type="text\/javascript">.*'(.*?)'.*<\/script>/);
+    if (!scriptMatch) throw new Error("Script content not found");
+    const jsonStr = scriptMatch[1];
+
     console.log(iframe);
     var decryptedString = this.decrypt(jsonStr, this.secretKey);
     const sourceReg = /sources\s*:\s*(\[.*?\])/;
     var tracksReg = /tracks\s*:\s*(\[.*?\])/;
     var media: Source = {
-      sources: JSON.parse(decryptedString.match(sourceReg)[1]),
-      tracks: JSON.parse(decryptedString.match(tracksReg)[1]),
+      sources: JSON.parse(decryptedString.match(sourceReg)?.[1] ?? "[]"),
+      tracks: JSON.parse(decryptedString.match(tracksReg)?.[1] ?? "[]"),
       referer: this.baseUrl,
       provider: "Movieapi.club",
+      url: iframe
     };
     console.log(media);
     return media;
