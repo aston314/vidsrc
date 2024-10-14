@@ -10,23 +10,31 @@ class MoviesAPI implements Provider {
     this.secretKey = secretKey;
   }
 
-  decrypt: DecryptMethods["decrypt"] = (jsonStr, password) => {
+  decrypt: DecryptMethods["decrypt"] = (jsonStr: string, password: string) => {
     return JSON.parse(
       cryptoJs.AES.decrypt(jsonStr, password, {
         format: {
           parse: (jsonStr) => {
-            var j = JSON.parse(jsonStr);
-            var cipherParams = cryptoJs.lib.CipherParams.create({
+            const j = JSON.parse(jsonStr);
+            const cipherParams = cryptoJs.lib.CipherParams.create({
               ciphertext: cryptoJs.enc.Base64.parse(j.ct),
             });
             if (j.iv) cipherParams.iv = cryptoJs.enc.Hex.parse(j.iv);
             if (j.s) cipherParams.salt = cryptoJs.enc.Hex.parse(j.s);
             return cipherParams;
           },
-        },
+          stringify: (cipherParams) => {
+            const jsonObj: any = {
+              ct: cryptoJs.enc.Base64.stringify(cipherParams.ciphertext),
+            };
+            if (cipherParams.iv) jsonObj.iv = cryptoJs.enc.Hex.stringify(cipherParams.iv);
+            if (cipherParams.salt) jsonObj.s = cryptoJs.enc.Hex.stringify(cipherParams.salt);
+            return JSON.stringify(jsonObj);
+          }
+        }
       }).toString(cryptoJs.enc.Utf8)
     );
-  }
+  };
 
   async getSource(id: string, isMovie: boolean, s?: string, e?: string): Promise<Source> {
     const url = this.baseUrl + (isMovie ? `movie/${id}` : `tv/${id}-${s}-${e}`);
@@ -49,10 +57,10 @@ class MoviesAPI implements Provider {
     const jsonStr = scriptMatch[1];
 
     console.log(iframe);
-    var decryptedString = this.decrypt(jsonStr, this.secretKey);
+    const decryptedString = this.decrypt(jsonStr, this.secretKey);
     const sourceReg = /sources\s*:\s*(\[.*?\])/;
-    var tracksReg = /tracks\s*:\s*(\[.*?\])/;
-    var media: Source = {
+    const tracksReg = /tracks\s*:\s*(\[.*?\])/;
+    const media: Source = {
       sources: JSON.parse(decryptedString.match(sourceReg)?.[1] ?? "[]"),
       tracks: JSON.parse(decryptedString.match(tracksReg)?.[1] ?? "[]"),
       referer: this.baseUrl,
